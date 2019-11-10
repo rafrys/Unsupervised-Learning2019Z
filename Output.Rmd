@@ -1,8 +1,8 @@
 ---
-title: "Unsupervised Learning project - clustering"
+title: "Clustering project"
 author: "Rafał Rysiejko, Rezart Abbazi"
 date: "11/10/2019"
-output: word_document
+output: pdf_document
 ---
 
 ```{r setup, include=FALSE}
