@@ -1,6 +1,7 @@
 #Installing and loading packages
 
-requiredPackages = c("tidyverse","factoextra","stats","clustertend","flexclust","fpc","cluster","ClusterR") # list of required packages
+requiredPackages = c("tidyverse","factoextra","stats","clustertend","flexclust",
+                     "fpc","cluster","ClusterR","knitr","kableExtra") 
 for(i in requiredPackages){if(!require(i,character.only = TRUE)) install.packages(i)} 
 for(i in requiredPackages){library(i,character.only = TRUE) } 
 
@@ -11,31 +12,32 @@ for(i in requiredPackages){library(i,character.only = TRUE) }
 # ideas of how we can utilize insights from the analysis (e.g. marekting stratgies to apply to each group)
 
 # Loading data
-data_full <- read.csv("/Users/rafalelpassion/Unsupervised-Learning2019Z/Dataset/AB_NYC_2019.csv")
+data_full <- read.csv("/Users/rafalelpassion/Unsupervised-Learning2019Z/Dataset/CC GENERAL.csv")
+data_full$CUST_ID <- NULL
 
-# columns of intrest 
-columns <- c("neighbourhood_group","neighbourhood","latitude","longitude","room_type","price","minimum_nights","number_of_reviews")
-data <- subset(data_full,neighbourhood="",select=columns)
-data$neighbourhood_group <- as.factor(data$neighbourhood_group)
-data$neighbourhood <- as.factor(data$neighbourhood)
-data$room_type <- as.factor(data$room_type)
-
-# Price Bins 
-data$price_tier <- ifelse(data$price<=100,1,ifelse(data$price<=250,2,3))
-table(data$price_tier)
-
-#Looking fo n/a's
-any(is.na(data))
-
-barplot(data$price)
-table(data$room_type)
+# Missing values
+kable(summary(data_full),caption = "Summary statistics of the dataset")%>% 
+        kable_styling(latex_options="scale_down")
 
 
-hist(data$price,
-     col="#660033",
-     main="Histogram for Annual Income",
-     xlab="Annual Income Class",
-     ylab="Frequency",
-     labels=TRUE)
+# 313 observations are have NAs, we are dropping them
+data_full <- data_full[complete.cases(data_full), ]
 
+# Leaving only observations which have 12 months of tenure      
+nrow(data_full)-length(which(data_full$TENURE<12))
+data_full$TENURE <- NULL
 
+class(data_full)
+
+# Outliers treatment 
+columns <-c("BALANCE","PURCHASES","ONEOFF_PURCHASES","INSTALLMENTS_PURCHASES","CASH_ADVANCE","CREDIT_LIMIT",
+        "PAYMENTS","MINIMUM_PAYMENTS")
+
+as.data.frame(data_full) %>%
+        gather() %>%                           
+        ggplot(aes(value)) +                    
+        facet_wrap(~ key, scales = "free") +  
+        geom_density() +                      
+        theme(strip.text = element_text(size=5))
+
+hopkins()

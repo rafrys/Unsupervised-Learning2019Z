@@ -6,17 +6,29 @@ output: pdf_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = T)
 ```
 
 ## R Markdown
+inscription of a project. 
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+Installing and running the libraries:
+```{r echo=T,results='hide',message=FALSE}
+requiredPackages = c("tidyverse","factoextra","stats","clustertend","flexclust",
+                     "fpc","cluster","ClusterR","knitr","kableExtra") 
+for(i in requiredPackages){if(!require(i,character.only = TRUE)) install.packages(i)} 
+for(i in requiredPackages){library(i,character.only = TRUE)} 
+```
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+Loading the data:
+```{r}
+data_full <- read.csv("/Users/rafalelpassion/Unsupervised-Learning2019Z/Dataset/CC GENERAL.csv")
+```
 
-```{r cars}
-summary(cars)
+```{r}
+library(knitr)
+kable(summary(data_full),caption = "Summary statistics of the dataset")%>% 
+  kable_styling(latex_options="scale_down")
 ```
 
 ## Including Plots
