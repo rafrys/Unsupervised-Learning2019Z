@@ -25,7 +25,7 @@ data_full <- data_full[complete.cases(data_full), ]
 
 # Leaving only observations which have 12 months of tenure      
 nrow(data_full)-length(which(data_full$TENURE<12))
-data_full$TENURE <- NULL
+data_full %>% select(filter(.,TENURE==12))
 
 class(data_full)
 
@@ -40,4 +40,6 @@ as.data.frame(data_full) %>%
         geom_density() +                      
         theme(strip.text = element_text(size=5))
 
-hopkins()
+df <- scale(data_full)
+
+
