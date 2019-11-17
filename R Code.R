@@ -80,7 +80,7 @@ ggplot(aes(x = variable, y = value)) +
         labs(x = NULL, y = NULL) +
         theme_minimal()
 
-data_clustered_plot %>% 
+data_clustered_plot %>%
         ggplot(aes(x = variable, y = value)) +
         geom_boxplot(aes(fill = cluster), outlier.size = 1) +
         facet_wrap_paginate( ~ variable, scales = "free", ncol = 3, nrow = 2, page = 2) +
