@@ -1,0 +1,207 @@
+---
+title: "Clustering project"
+author: "Rafał Rysiejko, Rezart Abbazi"
+date: "19/10/2019"
+output: pdf_document
+---
+
+```{r setup, include=FALSE,message=FALSE}
+knitr::opts_chunk$set(echo = T)
+```
+
+As for our project for the first block of the Unsupervised Learning classes, we decided to perform cluster analysis on a customer segmentation problem. For that we used dataset containing data about the usage behaviour of about 9000 active credit card holders, available at [Kaggle](https://www.kaggle.com/arjunbhasin2013/ccdata).
+
+For the purposes of our project we also repurposed code from classes as well as taken some inspiration and suggestions in terms of techniques used,  from similar projects based on this dataset.
+
+Installing and running the libraries:
+```{r echo=T,results='hide',message=FALSE}
+requiredPackages = c("tidyverse","factoextra","stats","clustertend","flexclust","ggforce"
+                     ,"fpc","cluster","ClusterR","knitr","kableExtra","DataExplorer","reshape2",
+                     "mclust","dbscan") 
+for(i in requiredPackages){if(!require(i,character.only = TRUE)) install.packages(i)} 
+for(i in requiredPackages){library(i,character.only = TRUE) }
+```
+
+Loading the data:
+```{r}
+data_full <- read.csv("Dataset/CC GENERAL.csv",
+                      stringsAsFactors = F)
+```
+
+The sample Dataset summarizes the usage behavior of about 9000 active credit card holders during the last 6 months. The file is at a customer level with 18 behavioral variables.  
+1.	CUST_ID : Identification of Credit Card holder (Categorical)  
+2.	BALANCE : Balance amount left in their account to make purchases  
+3.	BALANCE_FREQUENCY : How frequently the Balance is updated, score between 0 and 1 (1 = frequently updated, 0 = not frequently updated)  
+4.	PURCHASES : Amount of purchases made from account  
+5.	ONEOFF_PURCHASES : Maximum purchase amount done in one-go  
+6.	INSTALLMENTS_PURCHASES : Amount of purchase done in installment  
+7.	CASH_ADVANCE : Cash in advance given by the user  
+8.	PURCHASES_FREQUENCY : How frequently the Purchases are being made, score between 0 and 1 (1 = frequently purchased, 0 = not frequently purchased)  
+9.	ONEOFFPURCHASESFREQUENCY : How frequently Purchases are happening in one-go (1 = frequently purchased, 0 = not frequently purchased)  
+10.	PURCHASESINSTALLMENTSFREQUENCY : How frequently purchases in installments are being done (1 = frequently done, 0 = not frequently done)  
+11.	CASHADVANCEFREQUENCY : How frequently the cash in advance being paid  
+12.	CASHADVANCETRX : Number of Transactions made with "Cash in Advanced"  
+13.	PURCHASES_TRX : Number of purchase transactions made  
+14.	CREDIT_LIMIT : Limit of Credit Card for user  
+15.	PAYMENTS : Amount of Payment done by user  
+16.	MINIMUM_PAYMENTS : Minimum amount of payments made by user  
+17.	PRCFULLPAYMENT : Percent of full payment paid by user  
+18.	TENURE : Tenure of credit card service for user  
+  
+  
+Descriptive statistics for the dataset:  
+```{r echo=FALSE}
+kable(t(summary(data_full)),caption = "Summary statistics of the dataset")%>%
+kable_styling(latex_options="scale_down",bootstrap_options = c("striped", "hover"))
+```
+
+To better investigate the possible problem of missing observation, we visualize them on the graph number 1.  
+```{r echo=FALSE}
+plot_missing(data_full,title="Graph 1. % of NA values in the dataset")
+```
+As the number of missing observations is fairly small compared to the dataset volume. During the data transformation we droped them.
+
+`TENURE` variable has `r length(which(data_full$TENURE<12))` values that are not `12`. We are going to remove those rows for customers with `TENURE` < `12` so that all data are based on 1 year's worth of customer behavior. Then remove this variable from the dataset. We also dropped `CUST_ID` variable as it is of no use it this particular problem.
+
+```{r echo=T,results='hide',message=FALSE}
+data = data_full %>%
+  select(-CUST_ID) %>%
+  drop_na() %>%
+  filter(., TENURE==12) %>%
+  select(-TENURE)
+```
+
+We then created histograms to analyze the distribution of the variables.
+
+```{r echo=F,message=FALSE}
+gather(data) %>%
+  ggplot(., aes(value)) +
+  geom_histogram(aes(y =..density..),
+  col="black",
+  fill="blue",
+  alpha=.2) +
+  geom_density(col="darkblue")+
+  labs(title="Graph 2. Histograms of variables")+
+  facet_wrap(~key, scales = 'free')
+
+```
+
+Variables: `BALANCE`, `CASH_ADVANCE`,`CASH_ADVANCE_TRX`, `CREDIT_LIMIT`, `INSTALLMENTS_PURCHASES`, `MINIMUM_PAYMENTS`, `ONEOFF_PURCHASES`, `PAYMENTS`,`PURCHASES`, `PURCHASES_TRX` are right - skewed (Positive Skewnees). We are using a log transformation to reduce the negative impact of skewnees on the model performance.
+
+```{r echo=T,message=FALSE,warning=FALSE}
+transformed_var <- c("BALANCE", "CASH_ADVANCE","CASH_ADVANCE_TRX", "CREDIT_LIMIT", 
+                     "INSTALLMENTS_PURCHASES", "MINIMUM_PAYMENTS", "ONEOFF_PURCHASES",
+                     "PAYMENTS","PURCHASES", "PURCHASES_TRX")
+data <- data %>% mutate_at(vars(transformed_var), funs(log(1 + .)))
+```
+  
+\pagebreak
+
+Histograms after the transformation.
+
+```{r echo=FALSE,message=FALSE,warning=FALSE}
+gather(data) %>%
+  ggplot(., aes(value)) +
+  geom_histogram(aes(y =..density..),
+  col="black",
+  fill="blue",
+  alpha=.2) +
+  geom_density(col="darkblue")+
+  labs(title="Graph 3. Histograms of variables after log transformation")+
+  facet_wrap(~key, scales = 'free')
+```
+
+In the pre-diagnostic phase of the research we had to determine the optimal number of clusters using K-means method: where arbitrary data is chosen to be the centroids of this clusters. Once all the element of our dataset will be assigned to a cluster recalculate the positions of the centroids and reassign each data item to the closest cluster based on the mean value of the items on the cluster. This makes K-Means clustering algorithm very sensitive to outliers and noise, thereby reducing its performance too. K-means is also does not work quite well in discovering clusters that have non-convex shapes or very different size.  
+\pagebreak
+
+#### Graph 4. 
+
+```{r echo=FALSE,message=FALSE}
+fviz_nbclust(scale(data), kmeans, method = "wss", k.max = 10)
+```
+From the output we can notice that the total within sum of squares is decreasing rapidly till the fourth cluster as so this would be the optimal number for us. This means that 4 might be a good number of centroids for clustering on this data.
+
+After assesing the optimal number of clusters we performed the Duda-Hart test for whether a data set should be split into two clusters for kmeans class with hypothesis that state:  
+*H0: homogeneity of cluster (data within cluster as similar)*   
+*H1: heterogeneity of cluster (one can easily split the cluster)*  
+
+```{r echo=T}
+test1 <- kmeans(data,4) 
+dudahart2(data,test1$cluster)
+```
+As the *cluster1=FALSE* we have basis to reject *H0* of homogeneity in favour of accepting *H1*. The dataset is not homgenic and should be splited into two clusters.
+
+Next we perfomed an actual clusterin using k - means clustering an scaled dataset.
+
+```{r echo=T}
+km_fitted <- kmeans(scale(data), centers = 4)
+```
+
+We then visualized the performed clustering by applying Principal component analysis (PCA), which reduces the dimensionality of multivariate data, to in this case two that can be visualized graphically with minimal loss of information.  
+
+#### Graph 5.   
+
+```{r echo=FALSE,message=FALSE}
+prcomp(scale(data)) %>% 
+fviz_pca_ind(., geom = "point",habillage = km_fitted$cluster,alpha.ind=0.4)
+```
+
+
+As a next step we used silhouette coefficient method to determine the quiality of the clustering, which combines both cohesion and separation. The value of the silhouette coefficient can vary between -1 and 1. A negative value is undesirable because this corresponds to a case in which ai, the average distance to points in the cluster. We want the silhouette coefficient to be positive (a~i~<b~i~) and for ai to be as close to 0 as possible.  
+  
+\pagebreak  
+#### Graph 6. 
+
+```{r echo=FALSE,message=FALSE}
+silhouette(km_fitted$cluster, dist(scale(data), 
+                                 method = "euclidean"), lable = FALSE) %>% 
+        fviz_silhouette(., print.summary = FALSE)
+```
+
+In our cluster silhouette plot the average silhouette width is 0.23. The first group (red) has the lowest number of values under the x-axes means negative numbers. The same goes for the second group (green) where the range is smaller and the number of negative elements is insignificant. The third group (blue) has a similar distribution with the first group, but the only difference is that no negative elements are more evident and in the longer range. The fourth group (purple) is the group with the highest number of elements where the limit elements go over 0.50. What we can notice in this group is also the absence of negative elements. We can notice from this clustering that first, the third and fourth group have a significant number of values above the silhouette width coefficient, where in the first group are close to 0,5.
+ 
+
+Last but not least we combined the dataset with the information. This allowed us to investigate the descriptive statistics of particular clusters and try to characterize the cluster members. 
+  
+```{r echo=F}
+data_clustered <- data
+data_clustered$cluster = km_fitted$cluster
+
+data_clustered %>% 
+  group_by(cluster) %>% 
+  summarise_all(mean) %>% 
+  as.data.frame() %>%
+  kable(digits = 2, caption = "Mean") %>%
+  kable_styling(font_size = 9,bootstrap_options = c("striped", "hover"),latex_options=c("HOLD_position","scale_down"))
+```
+
+```{r echo=F}
+data_clustered %>% 
+  group_by(cluster) %>% 
+  summarise_all(median) %>% 
+  as.data.frame() %>%
+  kable(digits = 2, caption = "Median") %>%
+  kable_styling(font_size = 9,bootstrap_options = c("striped", "hover"),latex_options=c("HOLD_position","scale_down"))
+```
+
+```{r echo=F}
+data_clustered %>% 
+  group_by(cluster) %>% 
+  summarise_all(sd) %>% 
+  as.data.frame() %>%
+  kable(digits = 2, caption = "Standard Deviation") %>%
+  kable_styling(font_size = 9,bootstrap_options = c("striped", "hover"),latex_options=c("HOLD_position","scale_down"))
+```
+
+\pagebreak 
+
+Observing the three tables, respectively, the mean, median and standard deviation we can notice the following:   
+* On the ‘Mean’ table we can notice clusters with the similarities about the balance, balance frequency, credit limit and payments but significant differences on purchases, where the third group has lower mean value, compared to the others. The same we can confirm about instalments purchases and purchases trx.   
+* On the ‘Median’ table, we can confirm by taking a look at the values the similarity with the mean in the four clusters. Here aswell we similarities between clusters on payments, credit limit, minimum payments and very significant differences in purchase frequency, purchases and I the most interesting is cash advance where individuals of cluster one and four have no elements.  
+* On the ‘Standard Deviation’, we can notice that what we mentioned above about the other two tables (mean, median) is not very accurate for this table, and here we can see why: If in the other two examples, we saw differences in purchases here the values are very similar and the same we can say about cash advance and instalments purchases.
+
+Based on this statistical value found on these three tables, we can assume:  
+1. In the first cluster we have frequent user from the table purchase frequency (0.86), with (probably) lower-income that spends his money mostly on consumer goods.  
+2. In the second cluster we have frequent user, with (probably) higher income that spends his money mostly on consumer goods.  
+3. In the third cluster we have users, with (probably) higher income than average, which spends his money more for higher-priced products with longterm use we can notice the one-off purchase is 0.90.  
+4. In the fourth cluster we have users with a low frequency of usage, with (probably) mid to low income which spends his money more on consumer goods of basic needs.
